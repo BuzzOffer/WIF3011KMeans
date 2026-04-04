@@ -1,4 +1,6 @@
 # Concurrent & Parallel Implementations of K-Means Clustering in Java
+>**The ongoing work is on the `dev` branch, please commit your work there instead of `main` branch**
+
 ## Project Overview
 K-Means clustering algorithm is a cornerstone of unsupervised learning in Artificial Intelligence. As data scales, sequential implementations face significant computational bottlenecks. Our project is to overcome thses challenges by developing three distinct Java implementations, including Sequential, Concurrent, and Parallel, to compare their scalability and resource efficiency.
 The application is capable of:
