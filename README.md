@@ -24,7 +24,7 @@ The design focuses on parallelizing the two most computationally intensive phase
 All commits should follow this format:
 `<type>(<scope>): <subject>`
 - Types:
-    - `fact`: new feature
+    - `feat`: new feature
     - `fix`: bug fix
     - `perf`: performance optimization
     - `docs`: documentation
