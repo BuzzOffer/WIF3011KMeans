@@ -11,11 +11,9 @@ import java.util.concurrent.*;
 
 public class ParallelKMeans implements KMeansAlgo {
     private final int numOfThreads;
-    private final long randomSeed;
 
-    public ParallelKMeans(int numOfThreads, long randomSeed) {
+    public ParallelKMeans(int numOfThreads) {
         this.numOfThreads = numOfThreads;
-        this.randomSeed = randomSeed;
     }
 
     @Override
