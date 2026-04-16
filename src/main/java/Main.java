@@ -1,4 +1,5 @@
 import api.KMeansAlgo;
+import impl.ParallelKMeans;
 import impl.SequentialKMeans;
 import model.Dataset;
 import model.Point;
@@ -32,6 +33,13 @@ public class Main {
         runKMeanTest("Sequential", kmeans, dataset2, initial_cluster, maxIterations);
         //Run k-mean with 100000 dataset
         runKMeanTest("Sequential", kmeans, dataset3, initial_cluster, maxIterations);
+
+        //For Parallel K-Mean
+        ParallelKMeans parallelKMeans = new ParallelKMeans(3);
+
+        runKMeanTest("Parallel", parallelKMeans, dataset1, initial_cluster, maxIterations);
+        runKMeanTest("Parallel", parallelKMeans, dataset2, initial_cluster, maxIterations);
+        runKMeanTest("Parallel", parallelKMeans, dataset3, initial_cluster, maxIterations);
 
     }
 
