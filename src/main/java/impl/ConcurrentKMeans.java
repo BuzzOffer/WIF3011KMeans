@@ -74,10 +74,6 @@ public class ConcurrentKMeans implements KMeansAlgo {
         }
     }
 
-    /*
-     * My part:
-     * Each thread calls this method to assign its points.
-     */
     private void assignChunk(List<Point> points, List<Cluster> clusters, int start, int end) {
         for (int i = start; i < end; i++) {
             Point point = points.get(i);
@@ -90,10 +86,6 @@ public class ConcurrentKMeans implements KMeansAlgo {
         }
     }
 
-    /*
-     * My part:
-     * Find the closest cluster for one point.
-     */
     private Cluster getNearestCluster(Point point, List<Cluster> clusters) {
         Cluster nearestCluster = null;
         double minDistance = Double.MAX_VALUE;
