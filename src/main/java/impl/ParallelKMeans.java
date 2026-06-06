@@ -110,7 +110,9 @@ public class ParallelKMeans implements KMeansAlgo {
     public void assignChunk(List<Point> chunk, List<Cluster> clusters) {
         for (Point point : chunk) {
             Cluster nearestCluster = getNearestCluster(point, clusters);
-            nearestCluster.addPoint(point);
+            synchronized (nearestCluster) {
+                nearestCluster.addPoint(point);
+            }
         }
     }
 

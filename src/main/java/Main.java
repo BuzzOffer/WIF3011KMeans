@@ -1,56 +1,61 @@
 import api.KMeansAlgo;
+import impl.ConcurrentKMeans;
 import impl.ParallelKMeans;
 import impl.SequentialKMeans;
 import model.Dataset;
-import model.Point;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
-
 
 public class Main {
+    //Generate the dataset with different size
+    private static final int[] DATASET_SIZES = {10000, 100000, 1000000};
+    //Vary the K-mean with different dimension (pls change if you want)
+    private static final int[] DIMENSIONS = {2, 10, 50};
+    //Use multiple number of clusters (can change if you want)
+    private static final int[] K_VALUES = {3, 5, 10};
+    //Thread pool sizes to simulate
+    private static final int[] THREAD_COUNTS = {1, 2, 4, 8};
+    //Fixef the num of interations
+    private static final int MAX_ITERATIONS = 100;
+
     public static void main(String[] args) {
-        //Generate dataset with 10000 points
-        Dataset dataset1 = DatasetGenerator.generateDataset(10000, 2);
-        //generate dataset with 100000 poitns
-        Dataset dataset2 = DatasetGenerator.generateDataset(100000, 2);
-        //Generate dataset with 1000000 points
-        Dataset dataset3 = DatasetGenerator.generateDataset(1000000, 2);
 
-        //Initialise the number of clusters (can change if you want)
-        int initial_cluster = 3;
-        //Initialise the number of iterations (pls change if you want)
-        int maxIterations = 100;
+        for (int size : DATASET_SIZES) {
+            for (int dimension : DIMENSIONS) {
+                for (int k_value : K_VALUES) {
+                    System.out.println("##############################################################################################");
+                    System.out.println("Dataset with size of " + size + " | Dimensions of: " + dimension + " | K value of: " + k_value);
+                    System.err.println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+                    Dataset dataset = DatasetGenerator.generateDataset(size, dimension);
 
+                    //Run the sequrntial K-Mean test
+                    runDiffKMeanVariantTest("( Sequential )", new SequentialKMeans(), dataset, k_value);
 
-        //For sequential K-Mean
-        SequentialKMeans kmeans = new SequentialKMeans();
+                    //Added thread to Parallel and Concurrent K-Mean test
+                    for (int threads : THREAD_COUNTS) {
+                        runDiffKMeanVariantTest("( Parallel with number of threads " + threads + " )", new ParallelKMeans(threads), dataset, k_value);
+                        runDiffKMeanVariantTest("( Concurrent with number of threads " + threads + " )", new ConcurrentKMeans(threads), dataset, k_value);
+                    }
 
-        //Run k-mean with 10000 dataset
-        runKMeanTest("Sequential", kmeans, dataset1, initial_cluster, maxIterations);
-        //Run k-mean with 100000 dataset
-        runKMeanTest("Sequential", kmeans, dataset2, initial_cluster, maxIterations);
-        //Run k-mean with 100000 dataset
-        runKMeanTest("Sequential", kmeans, dataset3, initial_cluster, maxIterations);
-
-        //For Parallel K-Mean
-        ParallelKMeans parallelKMeans = new ParallelKMeans(3);
-
-        runKMeanTest("Parallel", parallelKMeans, dataset1, initial_cluster, maxIterations);
-        runKMeanTest("Parallel", parallelKMeans, dataset2, initial_cluster, maxIterations);
-        runKMeanTest("Parallel", parallelKMeans, dataset3, initial_cluster, maxIterations);
-
+                    System.out.println("##############################################################################################");
+                    System.out.println();
+                }
+            }
+        }
     }
 
-    private static void runKMeanTest(String name, KMeansAlgo kMeanType, Dataset dataset, int k, int maxIterations) {
-        long startTimeCount = System.nanoTime();
+    //Run on different types of K-mean to get the memory usage and time taken
+    private static void runDiffKMeanVariantTest(String name, KMeansAlgo algorithm, Dataset dataset, int k_value) {
+        Runtime runtime = Runtime.getRuntime();
 
-        kMeanType.cluster(dataset, k, maxIterations);
-        long endTimeCount = System.nanoTime();
-        long totalTimeUsage = (endTimeCount - startTimeCount) / 1000000;
+        runtime.gc();
+        long memoryBefore = runtime.totalMemory() - runtime.freeMemory();
 
-        System.out.println("The total time used for " + name + " K-Mean with " + dataset.getSize() + " of dataset is: " + totalTimeUsage + " ms.");
+        long startTime = System.nanoTime();
+        algorithm.cluster(dataset, k_value, MAX_ITERATIONS);
+        long elapsedTimeInMs = (System.nanoTime() - startTime) / 10000000;
+
+        long memoryAfter = runtime.totalMemory() - runtime.freeMemory();
+        long memoryUsedInMB = (memoryAfter - memoryBefore) / (1024 * 1024);
+
+        System.out.println(name + " | Total Time Taken: " + elapsedTimeInMs + " Ms | Total Memory Usage: " + memoryUsedInMB + " MB");
     }
 }
-
