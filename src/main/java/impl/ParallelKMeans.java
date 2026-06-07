@@ -10,7 +10,15 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class ParallelKMeans implements KMeansAlgo {
+
+    // Convergence threshold
+    private static final double EPSILON = 1e-6;
+
     private final int numOfThreads;
+
+    // Results kept after cluster() for verification
+    private List<Cluster> clusters;
+    private int iterationsRun;
 
     public ParallelKMeans(int numOfThreads) {
         this.numOfThreads = numOfThreads;
@@ -18,20 +26,22 @@ public class ParallelKMeans implements KMeansAlgo {
 
     @Override
     public void cluster(Dataset data, int k, int maxIteration) {
+        this.clusters = null;
+        this.iterationsRun = 0;
+
         List<Point> points = data.getAllPoints();
         if (points == null || points.isEmpty() || k <= 0)
             return;
 
         Random rand = new Random();
-
         Collections.shuffle(points, rand);
 
         //Initialize centroids
-        List<Cluster> clusters = new ArrayList<>(k);
+        List<Cluster> clusterList = new ArrayList<>(k);
         for (int i = 0; i < k; i++) {
             Point randomPoint = points.get(i);
             Centroid newCentroid = new Centroid(i, randomPoint.getCoordinates().clone());
-            clusters.add(new Cluster(newCentroid));
+            clusterList.add(new Cluster(newCentroid));
         }
 
         ExecutorService executor = Executors.newFixedThreadPool(numOfThreads);
@@ -40,36 +50,77 @@ public class ParallelKMeans implements KMeansAlgo {
         List<List<Point>> partitions = new ArrayList<>();
 
         for (int i = 0; i < numOfThreads; i++) {
-            int start = i * chunkSize; //Starting index
-            int end = (i == numOfThreads - 1) ? points.size() : (i + 1) * chunkSize; //get last points in the last chunk
+            int start = i * chunkSize;
+            int end = (i == numOfThreads - 1) ? points.size() : (i + 1) * chunkSize;
             List<Point> chunk = points.subList(start, end);
             partitions.add(chunk);
         }
 
+        int iterationsDone = 0;
+
+        // snapshot of centroid coordinates from previous iteration for convergence
+        double[][] previousCentroids = null;
+
         try {
             for (int iter = 0; iter < maxIteration; iter++) {
-                for (Cluster cluster : clusters) {
+                for (Cluster cluster : clusterList) {
                     cluster.clearPoints();
                 }
 
-                List<Future<?>> futures = new ArrayList<>();
-
+                // --- Assignment phase (parallel) ---
+                List<Future<?>> assignFutures = new ArrayList<>();
                 for (int t = 0; t < numOfThreads; t++) {
                     int chunkIndex = t;
-                    futures.add(executor.submit(() -> {
-                        assignChunk(partitions.get(chunkIndex), clusters);
+                    assignFutures.add(executor.submit(() -> {
+                        assignChunk(partitions.get(chunkIndex), clusterList);
                     }));
                 }
-
-                for (Future<?> future : futures) {
+                for (Future<?> future : assignFutures) {
                     future.get();
                 }
 
-                for (Cluster cluster : clusters) {
-                    executor.submit(() -> {
-                        updateCentroids(cluster);
-                    });
+                // Snapshot centroids BEFORE update for convergence check
+                int dim = points.get(0).getDimension();
+                double[][] oldCentroids = new double[k][dim];
+                for (int c = 0; c < k; c++) {
+                    double[] coords = clusterList.get(c).getCentroid().getCoordinates();
+                    System.arraycopy(coords, 0, oldCentroids[c], 0, dim);
                 }
+
+                // --- Update phase (parallel, MUST await all futures) ---
+                List<Future<?>> updateFutures = new ArrayList<>();
+                for (Cluster cluster : clusterList) {
+                    updateFutures.add(executor.submit(() -> {
+                        updateCentroids(cluster);
+                    }));
+                }
+                for (Future<?> future : updateFutures) {
+                    future.get();
+                }
+
+                iterationsDone = iter + 1;
+
+                // Convergence check — compare new vs old centroid positions
+                if (previousCentroids != null) {
+                    double maxShift = 0;
+                    for (int c = 0; c < k; c++) {
+                        double[] cur = clusterList.get(c).getCentroid().getCoordinates();
+                        double[] prev = previousCentroids[c];
+                        double sum = 0;
+                        for (int d = 0; d < dim; d++) {
+                            double diff = cur[d] - prev[d];
+                            sum += diff * diff;
+                        }
+                        double shift = Math.sqrt(sum);
+                        if (shift > maxShift) {
+                            maxShift = shift;
+                        }
+                    }
+                    if (maxShift < EPSILON) {
+                        break;
+                    }
+                }
+                previousCentroids = oldCentroids;
             }
         } catch (ExecutionException e) {
             throw new RuntimeException("Parallel KMeans failed", e.getCause());
@@ -79,6 +130,9 @@ public class ParallelKMeans implements KMeansAlgo {
         } finally {
             executor.shutdown();
         }
+
+        this.iterationsRun = iterationsDone;
+        this.clusters = clusterList;
     }
 
     public Cluster getNearestCluster(Point point, List<Cluster> clusters) {

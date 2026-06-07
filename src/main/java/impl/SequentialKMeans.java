@@ -5,8 +5,19 @@ import model.*;
 import java.util.*;
 
 public class SequentialKMeans implements KMeansAlgo {
+
+    // Convergence threshold
+    private static final double EPSILON = 1e-6;
+
+    // Results kept after cluster() for verification
+    private List<Cluster> clusters;
+    private int iterationsRun;
+
     @Override
     public void cluster(Dataset data, int k, int maxIterations) {
+        this.clusters = null;
+        this.iterationsRun = 0;
+
         try {
             List<Point> points = data.getAllPoints();
             Random random = new Random();
@@ -14,32 +25,71 @@ public class SequentialKMeans implements KMeansAlgo {
             //Shuffle the points in the dataset so that it won't get a repeated point.
             Collections.shuffle(points, random);
 
-            //Initializr the centroids randomly
-            List<Cluster> clusters = new ArrayList<>();
+            //Initialize the centroids randomly
+            List<Cluster> clusterList = new ArrayList<>();
             for (int i = 0; i < k; i++) {
                 Point randomPoint = points.get(i);
                 Centroid centroid = new Centroid(i, randomPoint.getCoordinates().clone());
-                clusters.add(new Cluster(centroid));
+                clusterList.add(new Cluster(centroid));
             }
 
-            //Iteraten the given input
+            int dim = points.get(0).getDimension();
+            double[][] previousCentroids = null;
+
+            int iterationsDone = 0;
+
+            //Iterate the given input
             for (int iter = 0; iter < maxIterations; iter++) {
-                //Clear prevuious points that assigned to the cluster
-                for (Cluster cluster : clusters) {
+                //Clear previous points that assigned to the cluster
+                for (Cluster cluster : clusterList) {
                     cluster.clearPoints();
                 }
 
-                //Assigned points to the nearest centroids
+                //Assign points to the nearest centroids
                 for (Point point : points) {
-                    Cluster nearest_cluster = getNearestCluster(point, clusters);
+                    Cluster nearest_cluster = getNearestCluster(point, clusterList);
                     nearest_cluster.addPoint(point);
                 }
 
+                //Snapshot old centroid positions for convergence
+                double[][] oldCentroids = new double[k][dim];
+                for (int c = 0; c < k; c++) {
+                    double[] coords = clusterList.get(c).getCentroid().getCoordinates();
+                    System.arraycopy(coords, 0, oldCentroids[c], 0, dim);
+                }
+
                 //Next we update the centroids after assigning the points
-                for (Cluster cluster : clusters) {
+                for (Cluster cluster : clusterList) {
                     updateCentroids(cluster);
                 }
+
+                iterationsDone = iter + 1;
+
+                //Convergence check
+                if (previousCentroids != null) {
+                    double maxShift = 0;
+                    for (int c = 0; c < k; c++) {
+                        double[] cur = clusterList.get(c).getCentroid().getCoordinates();
+                        double[] prev = previousCentroids[c];
+                        double sum = 0;
+                        for (int d = 0; d < dim; d++) {
+                            double diff = cur[d] - prev[d];
+                            sum += diff * diff;
+                        }
+                        double shift = Math.sqrt(sum);
+                        if (shift > maxShift) {
+                            maxShift = shift;
+                        }
+                    }
+                    if (maxShift < EPSILON) {
+                        break;
+                    }
+                }
+                previousCentroids = oldCentroids;
             }
+
+            this.iterationsRun = iterationsDone;
+            this.clusters = clusterList;
 
         } catch (Exception error) {
             System.out.println("Fail to cluster the dataset due to: " + error.getMessage());

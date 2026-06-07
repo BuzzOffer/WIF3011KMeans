@@ -40,5 +40,6 @@ bin/
 ### VS Code ###
 .vscode/
 
-### Mac OS ###
 .DS_Store
+benchmark_results_*.csv
+charts/
