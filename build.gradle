@@ -1,5 +1,10 @@
 plugins {
     id 'java'
+    id 'application'
+}
+
+application {
+    mainClass = 'Main'
 }
 
 group = 'org.example'
@@ -13,8 +18,18 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:6.0.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // XChart for Java-based visualization
+    implementation 'org.knowm.xchart:xchart:3.8.8'
 }
 
 test {
     useJUnitPlatform()
+}
+
+task runVisualizer(type: JavaExec) {
+    group = 'application'
+    description = 'Generate performance comparison charts from CSV'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'visualisation.PerformanceVisualizer'
 }
