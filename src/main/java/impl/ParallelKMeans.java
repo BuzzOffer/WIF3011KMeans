@@ -58,9 +58,6 @@ public class ParallelKMeans implements KMeansAlgo {
 
         int iterationsDone = 0;
 
-        // snapshot of centroid coordinates from previous iteration for convergence
-        double[][] previousCentroids = null;
-
         try {
             for (int iter = 0; iter < maxIteration; iter++) {
                 for (Cluster cluster : clusterList) {
@@ -71,16 +68,14 @@ public class ParallelKMeans implements KMeansAlgo {
                 List<Future<?>> assignFutures = new ArrayList<>();
                 for (int t = 0; t < numOfThreads; t++) {
                     int chunkIndex = t;
-                    assignFutures.add(executor.submit(() -> {
-                        assignChunk(partitions.get(chunkIndex), clusterList);
-                    }));
+                    assignFutures.add(executor.submit(() -> assignChunk(partitions.get(chunkIndex), clusterList)));
                 }
                 for (Future<?> future : assignFutures) {
                     future.get();
                 }
 
                 // Snapshot centroids BEFORE update for convergence check
-                int dim = points.get(0).getDimension();
+                int dim = points.getFirst().getDimension();
                 double[][] oldCentroids = new double[k][dim];
                 for (int c = 0; c < k; c++) {
                     double[] coords = clusterList.get(c).getCentroid().getCoordinates();
@@ -90,9 +85,7 @@ public class ParallelKMeans implements KMeansAlgo {
                 // --- Update phase (parallel, MUST await all futures) ---
                 List<Future<?>> updateFutures = new ArrayList<>();
                 for (Cluster cluster : clusterList) {
-                    updateFutures.add(executor.submit(() -> {
-                        updateCentroids(cluster);
-                    }));
+                    updateFutures.add(executor.submit(() -> updateCentroids(cluster)));
                 }
                 for (Future<?> future : updateFutures) {
                     future.get();
@@ -100,27 +93,28 @@ public class ParallelKMeans implements KMeansAlgo {
 
                 iterationsDone = iter + 1;
 
-                // Convergence check — compare new vs old centroid positions
-                if (previousCentroids != null) {
-                    double maxShift = 0;
-                    for (int c = 0; c < k; c++) {
-                        double[] cur = clusterList.get(c).getCentroid().getCoordinates();
-                        double[] prev = previousCentroids[c];
-                        double sum = 0;
-                        for (int d = 0; d < dim; d++) {
-                            double diff = cur[d] - prev[d];
-                            sum += diff * diff;
-                        }
-                        double shift = Math.sqrt(sum);
-                        if (shift > maxShift) {
-                            maxShift = shift;
-                        }
+                //convergence check
+                double maxShift = 0;
+                for (int c = 0; c < k; c++) {
+                    //get current and previous centroid coords
+                    double[] current = clusterList.get(c).getCentroid().getCoordinates();
+                    double[] prev = oldCentroids[c];
+                    //calculate Euclidean distance between current and previous
+                    double sum = 0;
+                    for (int d = 0; d < dim; d++) {
+                        double diff = current[d] - prev[d];
+                        sum += diff * diff;
                     }
-                    if (maxShift < EPSILON) {
-                        break;
+                    double shift = Math.sqrt(sum);
+                    //get max shift
+                    if (shift > maxShift) {
+                        maxShift = shift;
                     }
                 }
-                previousCentroids = oldCentroids;
+                //if the max shift is less than 1e-6, then the algorithm has converged
+                if (maxShift < EPSILON) {
+                    break;
+                }
             }
         } catch (ExecutionException e) {
             throw new RuntimeException("Parallel KMeans failed", e.getCause());
