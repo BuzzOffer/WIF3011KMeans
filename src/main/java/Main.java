@@ -3,6 +3,7 @@ import impl.ConcurrentKMeans;
 import impl.ParallelKMeans;
 import impl.SequentialKMeans;
 import model.Dataset;
+import utils.DatasetGenerator;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -24,7 +25,6 @@ public class Main {
     public static void main(String[] args) {
         int cores = Runtime.getRuntime().availableProcessors();
         System.out.println("CPU cores: " + cores + " | JVM: " + System.getProperty("java.version"));
-        System.out.println("Each config runs ONCE (no warmup, no averaging).");
         System.out.println();
 
         String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
@@ -46,11 +46,11 @@ public class Main {
 
                     Dataset dataset = DatasetGenerator.generateDataset(size, dimension);
 
-                    runOnce("Sequential", 1, new SequentialKMeans(), dataset, k_value);
+                    runBenchmark("Sequential", 1, new SequentialKMeans(), dataset, k_value);
 
                     for (int threads : THREAD_COUNTS) {
-                        runOnce("Concurrent", threads, new ConcurrentKMeans(threads), dataset, k_value);
-                        runOnce("Parallel", threads, new ParallelKMeans(threads), dataset, k_value);
+                        runBenchmark("Concurrent", threads, new ConcurrentKMeans(threads), dataset, k_value);
+                        runBenchmark("Parallel", threads, new ParallelKMeans(threads), dataset, k_value);
                     }
 
                     System.out.println();
@@ -62,7 +62,7 @@ public class Main {
         System.out.println("Results written to: " + csvPath);
     }
 
-    private static void runOnce(String algoName, int threads, KMeansAlgo algorithm,
+    private static void runBenchmark(String algoName, int threads, KMeansAlgo algorithm,
                                 Dataset dataset, int k) {
         Runtime runtime = Runtime.getRuntime();
         runtime.gc();
